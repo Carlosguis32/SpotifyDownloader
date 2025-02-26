@@ -31,12 +31,19 @@ function App() {
 		}
 	}
 
-	async function downloadSong(url) {
+	async function downloadSong(data) {
 		try {
 			setIsLoading(true);
-			console.log(url);
+			console.log(data.url);
 			const apiUrl = `http://localhost:4000/download`;
-			const params = new URLSearchParams({ url });
+			const params = new URLSearchParams({
+				url: data.url,
+				artist: data.artist,
+				album: data.album,
+				title: data.title,
+				year: data.year,
+				imageUrl: data.imageUrl,
+			});
 
 			const response = await fetch(`${apiUrl}?${params.toString()}`);
 
@@ -57,9 +64,16 @@ function App() {
 			throw new Error("No API key is provided");
 		}
 
-		const url = `https://www.googleapis.com/youtube/v3/search?key=${YOUTUBE_API_KEY}&type=video&part=id&maxResults=1&q=${encodeURIComponent(
-			searchInput
-		)}`;
+		const url =
+			`https://www.googleapis.com/youtube/v3/search?` +
+			new URLSearchParams({
+				key: YOUTUBE_API_KEY,
+				q: searchInput,
+				type: "video",
+				part: "id",
+				maxResults: "1",
+				fields: "items/id/videoId",
+			}).toString();
 
 		try {
 			const response = await fetch(url);
@@ -117,11 +131,18 @@ function App() {
 			const data = await response.json();
 
 			for (const item of data.items) {
-				const videoUrl = await getFirstVideoURL(
-					`${item.track.artists[0].name} - ${item.track.name} - Album: ${item.track.album.name}`
-				);
+				const data = {
+					url: await getFirstVideoURL(
+						`${item.track.artists[0].name} - ${item.track.name} - Album: ${item.track.album.name}`
+					),
+					artist: item.track.artists[0].name,
+					album: item.track.album.name,
+					title: item.track.name,
+					year: item.track.album.release_date.split("-")[0],
+					imageUrl: item.track.album.images[0].url,
+				};
 
-				await downloadSong(videoUrl);
+				await downloadSong(data);
 			}
 
 			if (data.next) {
