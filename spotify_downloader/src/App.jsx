@@ -1,6 +1,6 @@
 import { useState } from "react";
 import "./App.css";
-import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, YOUTUBE_API_KEY, YOUTUBE_URL_PREFIX } from "./parameters";
+import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from "./parameters";
 
 function App() {
 	const [playlistId, setPlaylistId] = useState("");
@@ -34,7 +34,6 @@ function App() {
 	async function downloadSong(data) {
 		try {
 			setIsLoading(true);
-			console.log(data.url);
 			const apiUrl = `http://localhost:4000/download`;
 			const params = new URLSearchParams({
 				url: data.url,
@@ -56,41 +55,6 @@ function App() {
 			alert("An error occurred while downloading the video. Please try again.");
 		} finally {
 			setIsLoading(false);
-		}
-	}
-
-	async function getFirstVideoURL(searchInput) {
-		if (!YOUTUBE_API_KEY) {
-			throw new Error("No API key is provided");
-		}
-
-		const url =
-			`https://www.googleapis.com/youtube/v3/search?` +
-			new URLSearchParams({
-				key: YOUTUBE_API_KEY,
-				q: searchInput,
-				type: "video",
-				part: "id",
-				maxResults: "1",
-				fields: "items/id/videoId",
-			}).toString();
-
-		try {
-			const response = await fetch(url);
-			if (!response.ok) {
-				throw new Error("Error fetching data from YouTube API");
-			}
-
-			const data = await response.json();
-
-			if (!data.items || data.items.length === 0) {
-				throw new Error("No videos found");
-			}
-
-			return `${YOUTUBE_URL_PREFIX}${data.items[0].id.videoId}`;
-		} catch (error) {
-			console.error("YouTube API Error:", error.message);
-			return null;
 		}
 	}
 
@@ -131,10 +95,23 @@ function App() {
 			const data = await response.json();
 
 			for (const item of data.items) {
-				const data = {
-					url: await getFirstVideoURL(
-						`${item.track.artists[0].name} - ${item.track.name} - Album: ${item.track.album.name}`
-					),
+				const apiUrl = `http://localhost:4000/youtube_search`;
+				const searchQuery = `${item.track.name}: ${item.track.artists[0].name}`;
+				const params = new URLSearchParams({
+					query: searchQuery,
+				});
+
+				console.log(`Searching for: ${searchQuery}`);
+
+				const response = await fetch(`${apiUrl}?${params.toString()}`);
+
+				if (!response.ok) {
+					throw new Error("Failed to fetch the Youtube video");
+				}
+
+				const videoData = await response.json();
+				const videoDataDetails = {
+					url: videoData.videoUrl,
 					artist: item.track.artists[0].name,
 					album: item.track.album.name,
 					title: item.track.name,
@@ -142,7 +119,7 @@ function App() {
 					imageUrl: item.track.album.images[0].url,
 				};
 
-				await downloadSong(data);
+				await downloadSong(videoDataDetails);
 			}
 
 			if (data.next) {

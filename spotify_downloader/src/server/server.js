@@ -6,6 +6,7 @@ import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import NodeID3 from "node-id3";
 import { Buffer } from "buffer";
+import yts from "yt-search";
 
 const app = express();
 app.use(cors());
@@ -80,6 +81,24 @@ app.get("/download", async (req, res) => {
 			details: error.message,
 		});
 	}
+});
+
+app.get("/youtube_search", async (req, res) => {
+	const response = await yts(req.query);
+
+	console.log(response);
+
+	if (!response) {
+		throw new Error("No videos found");
+	}
+
+	const firstVideo = response.videos[0];
+
+	console.log(firstVideo);
+
+	res.status(200).json({
+		videoUrl: `${firstVideo.url}`,
+	});
 });
 
 const port = 4000;
