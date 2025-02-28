@@ -7,24 +7,39 @@ import { existsSync, mkdirSync } from "fs";
 import NodeID3 from "node-id3";
 import { Buffer } from "buffer";
 import yts from "yt-search";
+import { DOWNLOADS_FOLDER_NAME, SERVER_PORT } from "../parameters.js";
+import { appendFile } from "fs/promises";
 
 const app = express();
 app.use(cors());
 
-app.get("/download", async (req, res) => {
-	const { url, artist, album, title, year, imageUrl } = req.query;
-	const outputPath = join(process.env.USERPROFILE, "Desktop", "SpotifyDownloads");
+const outputPath = join(process.env.USERPROFILE, "Desktop", DOWNLOADS_FOLDER_NAME);
+let imageBuffer;
+let missingSongs = [];
 
+app.get("/download", async (req, res) => {
 	if (!existsSync(outputPath)) {
 		mkdirSync(outputPath, { recursive: true });
 	}
 
 	try {
-		console.log("1. Iniciando descarga...");
-		console.log("URL:", url);
+		console.log("Starting download...");
+		console.log("URL:", req.query.url);
 
-		const fileName = `${title}.mp3`;
-		const filePath = join(outputPath, fileName);
+		const sanitizedTitle = (req.query.title || "Unknown Title")
+			.replace(/[<>:"/\\|?*]/g, "")
+			.replace(/\./g, "")
+			.trim();
+
+		let fileName = `${sanitizedTitle}.mp3`;
+		let filePath = join(outputPath, fileName);
+		let counter = 1;
+
+		while (existsSync(filePath)) {
+			fileName = `${sanitizedTitle} (${counter}).mp3`;
+			filePath = join(outputPath, fileName);
+			counter++;
+		}
 
 		const options = {
 			extractAudio: true,
@@ -34,50 +49,32 @@ app.get("/download", async (req, res) => {
 			windowsFilenames: true,
 		};
 
-		console.log("2. Descargando y convirtiendo a MP3...");
-		await youtubedl(url, options);
+		console.log("Downloading and converting to .mp3...");
+
+		await youtubedl(req.query.url, options);
 
 		if (!existsSync(filePath)) {
 			throw new Error(`File not found: ${filePath}`);
 		}
 
-		console.log("3. Escribiendo etiquetas...");
+		console.log("Writing tags...");
 
-		let imageBuffer;
-		if (imageUrl) {
-			console.log("Descargando imagen de portada... " + imageUrl);
-			const imageResponse = await fetch(imageUrl);
-			imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+		try {
+			writeMetadata(req.query, filePath);
+			console.log("Tags written correctly, download completed successfully\n");
+		} catch (error) {
+			console.error(`Metadata could not be written: ${error}\n`);
 		}
 
-		const tags = {
-			title: title,
-			artist: artist || "Unknown Artist",
-			album: album || "Unknown Album",
-			year: year || "Unknown Year",
-			image: {
-				mime: "image/jpeg",
-				type: {
-					id: 3,
-					name: "Front cover",
-				},
-				description: "Album Art",
-				imageBuffer: imageBuffer,
-			},
-		};
-
-		NodeID3.write(tags, filePath);
-
-		console.log("4. Etiquetas escritas correctamente");
-
 		res.status(200).json({
-			message: "Descarga completada",
+			message: "Download completed",
 			filePath,
 		});
 	} catch (error) {
-		console.error("Error:", error);
+		console.error("Error:", error, "\n");
+		missingSongs.push(req.query.artist + " - " + req.query.title);
 		res.status(500).json({
-			error: "Error en la descarga",
+			error: "Error downloading",
 			details: error.message,
 		});
 	}
@@ -86,23 +83,67 @@ app.get("/download", async (req, res) => {
 app.get("/youtube_search", async (req, res) => {
 	const response = await yts(req.query);
 
-	console.log(response);
-
-	if (!response) {
-		throw new Error("No videos found");
+	if (!response || !response?.videos?.[0]?.url) {
+		res.status(404).json({
+			error: "Video not found",
+		});
+	} else {
+		res.status(200).json({
+			videoUrl: `${response.videos[0].url}`,
+		});
 	}
-
-	const firstVideo = response.videos[0];
-
-	console.log(firstVideo);
-
-	res.status(200).json({
-		videoUrl: `${firstVideo.url}`,
-	});
 });
 
-const port = 4000;
+app.post("/log-failed-downloads", async (_, res) => {
+	try {
+		const logPath = join(process.env.USERPROFILE, "Desktop", DOWNLOADS_FOLDER_NAME, "failed_downloads.txt");
 
-app.listen(port, () => {
-	console.log(`Servidor ejecutándose en http://localhost:${port}`);
+		if (missingSongs.length > 0) {
+			console.log("Missing songs:", missingSongs);
+			const missingSongsEntry = "Missing songs:\n" + missingSongs.join("\n") + "\n\n";
+			await appendFile(logPath, missingSongsEntry);
+			missingSongs = [];
+		}
+
+		res.status(200).json({ message: "Failed downloads logged successfully" });
+	} catch (error) {
+		console.error("Error logging failed downloads:", error);
+		res.status(500).json({ error: "Failed to log download failures" });
+	}
+});
+
+async function writeMetadata(metadata, filePath) {
+	if (metadata.imageUrl) {
+		try {
+			const imageResponse = await fetch(metadata.imageUrl);
+			imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+		} catch (error) {
+			console.error(`Album image could not be found: ${error}`);
+		}
+	}
+
+	const tags = {
+		title: metadata.title || "Unknown Title",
+		artist: metadata.artist || "Unknown Artist",
+		album: metadata.album || "Unknown Album",
+		year: metadata.year || "Unknown Year",
+		image: {
+			mime: "image/jpeg",
+			type: {
+				id: 3,
+				name: "Front cover",
+			},
+			imageBuffer: imageBuffer || null,
+		},
+	};
+
+	try {
+		NodeID3.write(tags, filePath);
+	} catch (error) {
+		throw Error(`Metadata could not be written: ${error}`);
+	}
+}
+
+app.listen(SERVER_PORT, () => {
+	console.log(`Server running in http://localhost:${SERVER_PORT}`);
 });
