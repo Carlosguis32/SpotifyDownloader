@@ -144,7 +144,7 @@ function App() {
 			searchQuery = modifiedQuery;
 			setModifiedQuery("");
 		} else {
-			searchQuery = `Song: ${item.track.name}, Artist: ${item.track.artists[0].name}, Album: ${item.track.album.name} ${item.track.external_urls.spotify}`;
+			searchQuery = `Song: ${item.track.name}, Artist: ${item.track.artists[0].name}, ${item.track.external_urls.spotify}`;
 		}
 		const params = new URLSearchParams({
 			query: searchQuery,
