@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Flex, Button, TextField, Heading, Text } from "@radix-ui/themes";
 import { MagnifyingGlassIcon } from "@radix-ui/react-icons";
-import "./App.css";
 
 function App() {
 	const [contentId, setContentId] = useState("");
