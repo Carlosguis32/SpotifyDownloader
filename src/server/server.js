@@ -1,5 +1,6 @@
 import express from "express";
 import process from "node:process";
+import * as dotenv from "dotenv-flow";
 import cors from "cors";
 import youtubedl from "youtube-dl-exec";
 import { join } from "path";
@@ -7,13 +8,16 @@ import { existsSync, mkdirSync } from "fs";
 import NodeID3 from "node-id3";
 import { Buffer } from "buffer";
 import yts from "yt-search";
-import { DOWNLOADS_FOLDER_NAME, SERVER_PORT } from "../parameters.js";
 import { appendFile } from "fs/promises";
+
+dotenv.config({
+	default_node_env: "development",
+});
 
 const app = express();
 app.use(cors());
 
-const outputPath = join(process.env.USERPROFILE, "Desktop", DOWNLOADS_FOLDER_NAME);
+const outputPath = join(process.env.USERPROFILE, "Desktop", process.env.DOWNLOADS_FOLDER_NAME);
 let imageBuffer;
 let missingSongs = [];
 
@@ -96,7 +100,12 @@ app.get("/youtube_search", async (req, res) => {
 
 app.post("/log-failed-downloads", async (_, res) => {
 	try {
-		const logPath = join(process.env.USERPROFILE, "Desktop", DOWNLOADS_FOLDER_NAME, "failed_downloads.txt");
+		const logPath = join(
+			process.env.USERPROFILE,
+			"Desktop",
+			process.env.DOWNLOADS_FOLDER_NAME,
+			"failed_downloads.txt"
+		);
 
 		if (missingSongs.length > 0) {
 			console.log("Missing songs:", missingSongs);
@@ -109,6 +118,32 @@ app.post("/log-failed-downloads", async (_, res) => {
 	} catch (error) {
 		console.error("Error logging failed downloads:", error);
 		res.status(500).json({ error: "Failed to log download failures" });
+	}
+});
+
+app.get("/get/spotify-token", async (_, res) => {
+	try {
+		console.log(process.env.SPOTIFY_API_CLIENT_ID);
+
+		const response = await fetch("https://accounts.spotify.com/api/token", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				Authorization:
+					"Basic " + btoa(`${process.env.SPOTIFY_API_CLIENT_ID}:${process.env.SPOTIFY_API_CLIENT_SECRET}`),
+			},
+			body: "grant_type=client_credentials",
+		});
+
+		if (!response.ok) {
+			return res.status(500).json({ error: "Failed to get the Spotify token" });
+		}
+
+		const data = await response.json();
+		return res.status(200).json({ token: data.access_token });
+	} catch (error) {
+		console.error("Error getting Spotify token:", error);
+		throw error;
 	}
 });
 
@@ -144,6 +179,12 @@ async function writeMetadata(metadata, filePath) {
 	}
 }
 
-app.listen(SERVER_PORT, () => {
-	console.log(`Server running in http://localhost:${SERVER_PORT}`);
+app.listen(parseInt(process.env.PORT), () => {
+	console.log(`Server running in http://localhost:${parseInt(process.env.PORT)}`);
+	console.log("Available routes:");
+	app._router.stack.forEach((r) => {
+		if (r.route && r.route.path) {
+			console.log(`${Object.keys(r.route.methods)} ${r.route.path}`);
+		}
+	});
 });

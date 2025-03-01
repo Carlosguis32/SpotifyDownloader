@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { getSpotifyToken } from "./functions";
-import { BASE_API_URL } from "./parameters";
 import { Flex, Button, TextField, Heading, Text } from "@radix-ui/themes";
 import { MagnifyingGlassIcon } from "@radix-ui/react-icons";
 import "./App.css";
@@ -15,6 +13,8 @@ function App() {
 	const [currentArtistName, setCurrentArtistName] = useState("");
 	const [modifiedQuery, setModifiedQuery] = useState("");
 
+	const DOMAIN = import.meta.env.VITE_DOMAIN;
+
 	async function downloadSong(data) {
 		try {
 			setIsLoading(true);
@@ -27,7 +27,7 @@ function App() {
 				imageUrl: data.imageUrl,
 			});
 
-			const response = await fetch(`${BASE_API_URL}/download?${params.toString()}`);
+			const response = await fetch(`${DOMAIN}/download?${params.toString()}`);
 
 			if (!response.ok) {
 				const errorData = await response.json();
@@ -67,7 +67,9 @@ function App() {
 			}
 
 			if (!token) {
-				token = await getSpotifyToken();
+				const response = await fetch(`${DOMAIN}/get/spotify-token`);
+				const tokenData = await response.json();
+				token = tokenData.token;
 				setSpotifyToken(token);
 			}
 
@@ -81,7 +83,9 @@ function App() {
 
 			if (!response.ok) {
 				if (response.status === 401) {
-					token = await getSpotifyToken();
+					const response = await fetch(`${DOMAIN}/get/spotify-token`);
+					const tokenData = await response.json();
+					token = tokenData.token;
 					return getSpotifyData();
 				}
 
@@ -128,7 +132,7 @@ function App() {
 		} finally {
 			setIsLoading(false);
 
-			await fetch(`${BASE_API_URL}/log-failed-downloads`, {
+			await fetch(`${DOMAIN}/log-failed-downloads`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -144,7 +148,7 @@ function App() {
 			searchQuery = modifiedQuery;
 			setModifiedQuery("");
 		} else {
-			searchQuery = `Song: ${item.track.name}, Artist: ${item.track.artists[0].name}, ${item.track.external_urls.spotify}`;
+			searchQuery = `${item.track.name}, ${item.track.artists[0].name} (Official Song), ${item.track.external_urls.spotify}`;
 		}
 		const params = new URLSearchParams({
 			query: searchQuery,
@@ -153,17 +157,17 @@ function App() {
 		console.log(`Searching for: ${searchQuery}`);
 		console.log(params.toString());
 
-		let response = await fetch(`${BASE_API_URL}/youtube_search?${params.toString()}`);
+		let response = await fetch(`${DOMAIN}/youtube_search?${params.toString()}`);
 
 		if (!response.ok) {
-			const secondarySearchQuery = `${item.track.name}: ${item.track.artists[0].name}`;
+			const secondarySearchQuery = `${item.track.name}, ${item.track.artists[0].name} (Official Song)`;
 			const secondaryParams = new URLSearchParams({
 				query: secondarySearchQuery,
 			});
 			console.log(`Secondary query for: ${secondarySearchQuery}`);
 			console.log(secondaryParams.toString());
 
-			response = await fetch(`${BASE_API_URL}/youtube_search?${secondaryParams.toString()}`);
+			response = await fetch(`${DOMAIN}/youtube_search?${secondaryParams.toString()}`);
 
 			if (!response.ok) {
 				throw new Error("Failed to fetch the Youtube video");
