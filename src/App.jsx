@@ -147,7 +147,7 @@ function App() {
 			searchQuery = modifiedQuery;
 			setModifiedQuery("");
 		} else {
-			searchQuery = `${item.track.name}, ${item.track.artists[0].name} (Official Song), ${item.track.external_urls.spotify}`;
+			searchQuery = `${item.track.name}, ${item.track.artists[0].name} Official Audio`;
 		}
 		const params = new URLSearchParams({
 			query: searchQuery,
@@ -159,18 +159,7 @@ function App() {
 		let response = await fetch(`${DOMAIN}/youtube_search?${params.toString()}`);
 
 		if (!response.ok) {
-			const secondarySearchQuery = `${item.track.name}, ${item.track.artists[0].name} (Official Song)`;
-			const secondaryParams = new URLSearchParams({
-				query: secondarySearchQuery,
-			});
-			console.log(`Secondary query for: ${secondarySearchQuery}`);
-			console.log(secondaryParams.toString());
-
-			response = await fetch(`${DOMAIN}/youtube_search?${secondaryParams.toString()}`);
-
-			if (!response.ok) {
-				throw new Error("Failed to fetch the Youtube video");
-			}
+			throw new Error("Failed to fetch the Youtube video");
 		}
 
 		const videoData = await response.json();

@@ -85,15 +85,23 @@ app.get("/download", async (req, res) => {
 });
 
 app.get("/youtube_search", async (req, res) => {
-	const response = await yts(req.query);
+	try {
+		const response = await yts(req.query);
 
-	if (!response || !response?.videos?.[0]?.url) {
-		res.status(404).json({
-			error: "Video not found",
-		});
-	} else {
+		if (!response || !response?.videos?.[0]?.url) {
+			return res.status(404).json({
+				error: "Video not found",
+			});
+		}
+
 		res.status(200).json({
 			videoUrl: `${response.videos[0].url}`,
+		});
+	} catch (error) {
+		console.error("YouTube search error:", error);
+		res.status(500).json({
+			error: "Failed to search YouTube",
+			details: error.message,
 		});
 	}
 });
