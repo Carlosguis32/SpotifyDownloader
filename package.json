@@ -8,7 +8,7 @@
 		"build": "vite build",
 		"lint": "eslint .",
 		"preview": "vite preview",
-		"server": "node server.js",
+		"server": "node src/server/server.js",
 		"server-dev": "cross-env NODE_ENV=development node ./src/server/server.js",
 		"server-prod": "cross-env NODE_ENV=production node ./src/server/server.js"
 	},
